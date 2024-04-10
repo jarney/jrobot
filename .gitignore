@@ -1,0 +1,11 @@
+
+*.ods
+*.FCBak
+old/
+pcb/fp-info-cache
+pcb/fp-lib-table
+pcb/pcb-backups
+FreeCAD
+build-guide/*/models/
+build-guide/*/animations/
+*.blend1
