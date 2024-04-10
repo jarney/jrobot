@@ -1,0 +1,61 @@
+import FreeCAD
+import os
+import re
+import csv
+
+doc = FreeCAD.activeDocument()
+assembly = App.ActiveDocument.getObject("Assembly")
+
+def getBOMFilename(filename, ext):
+    directory = os.path.dirname(filename)
+    basename = os.path.basename(filename)
+    insensitive_fcstd = re.compile(re.escape('.fcstd'), re.IGNORECASE)
+    basename_without_ext = insensitive_fcstd.sub('', basename)
+    return os.path.join(directory, "..", "bill-of-materials", basename_without_ext + "." + ext)
+
+
+def visitParts(assembly, fn):
+	fn(assembly)
+	for childName in assembly.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			for grandchildName in child.getSubObjects():
+				grandchildName = grandchildName[0:-1]
+				grandchild = App.ActiveDocument.getObject(grandchildName)
+				visitParts(grandchild.LinkedObject, fn)
+		if (child.TypeId == "App::Part"):
+			visitParts(child, fn)
+
+bomDict = {}
+bomFilename = getBOMFilename(App.ActiveDocument.FileName, "csv")
+
+def trackBOM(part):
+	partFilename = os.path.basename(part.Document.FileName)
+	if part.Label in bomDict:
+		bomDict[part.Label]["quantity"] += 1
+	else:
+		bomDict[part.Label] = {
+			"partNumber": part.Label,
+			"filename": partFilename,
+			"quantity": 1
+		}
+
+visitParts(assembly, trackBOM)
+
+with open(bomFilename, 'w', newline='') as csvfile:
+    csvWriter = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    csvWriter.writerow([
+        "filename",
+        "partNumber",
+        "quantity"
+    ])
+    for part in bomDict:
+        csvWriter.writerow([
+            bomDict[part]["filename"],
+            bomDict[part]["partNumber"],
+            bomDict[part]["quantity"]
+        ])

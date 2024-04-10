@@ -1,0 +1,124 @@
+# -*- coding: utf-8 -*-
+
+# Macro Begin: /home/jona/snap/freecad/common/exportAssembly.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import Mesh
+import MeshPart
+import os
+import re
+
+import FreeCAD
+
+doc = FreeCAD.activeDocument()
+assembly = App.ActiveDocument.getObject("Assembly")
+
+def getAssemblySTLFilename(filename, partName, ext):
+    directory = os.path.dirname(filename)
+    basename = os.path.basename(filename)
+    insensitive_fcstd = re.compile(re.escape('.fcstd'), re.IGNORECASE)
+    basename_without_ext = insensitive_fcstd.sub('', basename)
+    outDirectory = os.path.join(directory, "..", "3d-printing", basename_without_ext)
+    if not os.path.exists(outDirectory):
+        os.makedirs(outDirectory)
+    return os.path.join(outDirectory, partName + "." + ext)
+
+def visitAssembly(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handleAssembly(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("Other type " + child.TypeId)
+
+def visitGroup(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handleGroup(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("Group Other type " + childName + ": " + child.TypeId)
+
+def visitPart(object, handleAssembly, handlePart, handleGroup, handleLink):
+	handlePart(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("Part Other type " + childName + ": " + child.TypeId)
+
+def visitPartLink(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handlePartLink(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("PartLink Other type " + childName + ": " + child.TypeId)
+		
+
+objectsToExport = []
+
+def handleAssembly(assembly):
+	pass
+
+def handleGroup(group):
+	pass
+
+def handlePart(part):
+	pass
+
+def handlePartLink(partLink):
+	objectsToExport.append(partLink)
+
+visitAssembly(assembly, handleAssembly, handlePart, handleGroup, handlePartLink)
+
+for object in objectsToExport:
+
+    oldPlacement = object.Placement
+    newPlacement = App.Placement(App.Vector(0,0,0), object.Placement.Rotation)
+    object.Placement = newPlacement
+
+    exportFilename = getAssemblySTLFilename(App.ActiveDocument.FileName, object.Label, "stl")
+
+    try:
+        if hasattr(Mesh, "exportOptions"):
+            options = Mesh.exportOptions(exportFilename)
+            Mesh.export([object], exportFilename, options)
+        else:
+            Mesh.export([object], exportFilename)
+    finally:
+        object.Placement = oldPlacement
+
+del objectsToExport
+

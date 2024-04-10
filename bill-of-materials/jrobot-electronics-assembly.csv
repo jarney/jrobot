@@ -1,0 +1,17 @@
+filename,partNumber,quantity
+jrobot-electronics-assembly.FCStd,Assembly,1
+jrobot-electronics-parts.FCStd,P_ElectronicsBox_Base,1
+jrobot-electronics-parts.FCStd,P_ElectronicsBox_Cover,1
+standard-parts.FCStd,P_Fan_30mm,2
+standard-parts.FCStd,P_Arduino Mega 2560 v106,1
+standard-parts.FCStd,P_Arduino_CNCShield,2
+standard-parts.FCStd,P_M3_14_Screw,4
+standard-parts.FCStd,P_M3_Nut,24
+standard-parts.FCStd,P_M3_10_Screw,4
+standard-parts.FCStd,P_M3_16_Screw,16
+standard-parts.FCStd,P_Power_Female_2.1mm_5.5mm,1
+standard-parts.FCStd,P_Switch_KCD1-101,1
+standard-parts.FCStd,P_USB_B_Male,1
+standard-parts.FCStd,P_Arduino_StepperDriver,6
+standard-parts.FCStd,P_HeatSink_15mm,6
+jrobot-electronics-assembly.FCStd,P_Electronics_CustomShield,1

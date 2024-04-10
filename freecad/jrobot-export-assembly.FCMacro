@@ -1,0 +1,268 @@
+# -*- coding: utf-8 -*-
+
+# Macro Begin: /home/jona/snap/freecad/common/exportAssembly.FCMacro +++++++++++++++++++++++++++++++++++++++++++++++++
+import FreeCAD
+import importOBJ
+import os
+import re
+
+# Gui.runCommand('Std_DlgMacroRecord',0)
+### Begin command Std_Export
+#__objs__.append(FreeCAD.getDocument("jrobot_electronics_assembly").getObject("P_ElectronicsBox_Base"))
+#__objs__.append(FreeCAD.getDocument("jrobot_electronics_assembly").getObject("P_ElectronicsBox_Cover"))
+#if hasattr(Mesh, "exportOptions"):
+#    options = Mesh.exportOptions(u"/home/jona/3dPrinting/jrobot/freecad/jrobot-electronics-assembly.stl")
+#    Mesh.export(__objs__, u"/home/jona/3dPrinting/jrobot/freecad/jrobot-electronics-assembly.stl", options)
+#else:
+#    Mesh.export(__objs__, u"/home/jona/3dPrinting/jrobot/freecad/jrobot-electronics-assembly.stl")
+#
+#del __objs__
+
+
+import FreeCAD
+
+doc = FreeCAD.activeDocument()
+assembly = App.ActiveDocument.getObject("Assembly")
+
+def getAssemblySTLFilename(filename, partName, ext):
+    directory = os.path.dirname(filename)
+    basename = os.path.basename(filename)
+    insensitive_fcstd = re.compile(re.escape('.fcstd'), re.IGNORECASE)
+    basename_without_ext = insensitive_fcstd.sub('', basename)
+    outDirectory = os.path.join(directory, "..", "build-guide", "models", basename_without_ext)
+    if not os.path.exists(outDirectory):
+        os.makedirs(outDirectory)
+    return os.path.join(outDirectory, partName + "." + ext)
+
+def getAssemblyMTLFilename(filename, partName, ext):
+    directory = os.path.dirname(filename)
+    basename = os.path.basename(filename)
+    insensitive_fcstd = re.compile(re.escape('.fcstd'), re.IGNORECASE)
+    basename_without_ext = insensitive_fcstd.sub('', basename)
+    outDirectory = os.path.join(directory, "..", "build-guide", "models", basename_without_ext, "materials")
+    if not os.path.exists(outDirectory):
+        os.makedirs(outDirectory)
+    return os.path.join(outDirectory, partName + "." + ext)
+
+def visitAssembly(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handleAssembly(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("Other type " + child.TypeId)
+
+def visitGroup(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handleGroup(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		else:
+			print("Group Other type " + childName + ": " + child.TypeId)
+
+def visitPart(object, handleAssembly, handlePart, handleGroup, handleLink):
+	handlePart(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+#		else:
+#			print("Part Other type " + childName + ": " + child.TypeId)
+
+def visitPartLink(object, handleAssembly, handlePart, handleGroup, handlePartLink):
+	handlePartLink(object)
+	for childName in object.getSubObjects():
+		childName = childName[0:-1]
+		child = App.ActiveDocument.getObject(childName)
+		if not child:
+			continue
+		if (child.TypeId == "App::DocumentObjectGroup"):
+			visitGroup(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Part"):
+			visitPart(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+		elif (child.TypeId == "App::Link"):
+			visitPartLink(child, handleAssembly, handlePart, handleGroup, handlePartLink)
+#		else:
+#			print("PartLink Other type " + childName + ": " + child.TypeId)
+
+objectsToExport = []
+
+def handleAssembly(assembly):
+	pass
+
+def handleGroup(group):
+	pass
+
+def handlePart(part):
+	pass
+
+def handlePartLink(partLink):
+	objectsToExport.append(partLink)
+
+
+def getSubObject(partLink, objectType):
+    for childName in partLink.getSubObjects():
+        childName = childName[0:-1]
+        child = partLink.getLinkedObject().Document.getObject(childName)
+        if (child.TypeId == objectType):
+            return child
+    return None
+
+def getBody(partLink):
+    return getSubObject(partLink, 'PartDesign::Body')
+
+def getFastener(partLink):
+    return getSubObject(partLink, 'Part::FeaturePython')
+
+
+def exportMaterial(matFilename, materialName, partLink):
+    viewObject = None
+
+    # Try to get a fastener
+    body = getBody(partLink)
+    fastener = getFastener(partLink)
+
+    if fastener:
+        print("Fastener")
+        viewObject = fastener.ViewObject.getElementColors()['Face']
+    if not viewObject:
+        if body:
+            print("Body")
+            viewObject = body.ViewObject.getElementColors()['Face']
+    if not viewObject:
+        print("Other")
+        viewObject = partLink.ViewObject.ShapeColor
+
+    with open(matFilename, "w") as matFile:
+        if viewObject:
+            faceColors = viewObject
+            ar = faceColors[0]
+            ag = faceColors[1]
+            ab = faceColors[2]
+            factor = 0.2
+            dr = ar * factor
+            dg = ag * factor
+            db = ab * factor
+
+            ambientColor = "Ka " + str(ar) + " " + str(ag) + " " + str(ab)
+            diffuseColor = "Kd " + str(dr) + " " + str(dg) + " " + str(db)
+
+        else:
+            print("Part " + partLink.Label + " is using default material")
+            ambientColor = "Ka 0.2000 0.2000 0.2000"
+            diffuseColor = "Kd 0.8000 0.8000 0.8000"
+
+        matFile.write("newmtl " + materialName.replace(" ", "_") + "\n")
+        matFile.write(ambientColor + "\n")
+        matFile.write(diffuseColor + "\n")
+        matFile.write("illum 1" + "\n")
+
+def rewritePartMaterial(objFilename):
+    # Rewrwite the obj to use the material.
+    with open(objFilename, "r") as input:
+        with open(objFilename + ".new", "w") as output:
+            while True:
+                line = input.readline()
+                if not line:
+                    break
+                if line[0:7] == "mtllib ":
+                    output.write(line.replace("mtllib ", "mtllib materials/"))
+                elif line[0:2] == "o ":
+                    objname = line[2:].replace(" ", "_")
+                    output.write("o " + objname)
+                    output.write("usemtl " + objname)
+                else:
+                    output.write(line)
+    os.rename(objFilename + ".new", objFilename)
+
+def rewriteMeshMaterial(objFilename, partName):
+    # Rewrwite the obj to use the material.
+    with open(objFilename, "r") as input:
+        with open(objFilename + ".new", "w") as output:
+            while True:
+                line = input.readline()
+                if not line:
+                    break
+                if line[0:7] == "mtllib ":
+                    output.write(line.replace("mtllib ", "mtllib materials/"))
+                elif line[0:2] == "o ":
+                    output.write("o " + partName.replace(" ", "_"))
+                elif line[0:7] == "usemtl ":
+                    output.write("usemtl " + partName.replace(" ", "_"))
+                else:
+                    output.write(line)
+    os.rename(objFilename + ".new", objFilename)
+
+def getMesh(object):
+    for childName in object.getSubObjects():
+        childName = childName[0:-1]
+        child = object.getLinkedObject().Document.getObject(childName)
+        if (child.TypeId == "Mesh::Feature"):
+            return child
+    return None
+
+
+visitAssembly(assembly, handleAssembly, handlePart, handleGroup, handlePartLink)
+
+def exportObject(object):
+    objFilename = getAssemblySTLFilename(App.ActiveDocument.FileName, object.Label, "obj")
+    matFilename = getAssemblyMTLFilename(App.ActiveDocument.FileName, object.Label, "mtl")
+
+    print("Exporting " + object.Label)
+
+    mesh = getMesh(object)
+    mesh = None
+    if mesh:
+        oldPlacement = mesh.Placement
+        try:
+            mesh.Placement = object.Placement
+            if hasattr(importOBJ, "exportOptions"):
+                options = importOBJ.exportOptions(objFilename)
+                importOBJ.export([mesh], objFilename, options)
+            else:
+                importOBJ.export([mesh], objFilename)
+            rewriteMeshMaterial(objFilename, object.Label)
+            exportMaterial(matFilename, object.Label, mesh)
+        finally:
+            mesh.Placement = oldPlacement
+        return
+
+    exportMaterial(matFilename, object.Label, object)
+
+    if hasattr(importOBJ, "exportOptions"):
+        options = importOBJ.exportOptions(objFilename)
+        importOBJ.export([object], objFilename, options)
+    else:
+        importOBJ.export([object], objFilename)
+
+    rewritePartMaterial(objFilename)
+
+
+for object in objectsToExport:
+    exportObject(object)
+
+del objectsToExport
+
